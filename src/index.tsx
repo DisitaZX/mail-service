@@ -1,19 +1,31 @@
 import React from 'react';
-import ReactDOM from 'react-dom/client';
-import './index.css';
-import App from './App';
-import reportWebVitals from './reportWebVitals';
+import ReactDOM from 'react-dom/client'; // API React 18
+import { Provider } from 'react-redux';
+import { ConfigProvider } from 'antd';
+import ruRU from 'antd/locale/ru_RU'; // Локализация для русской версии Ant Design
+import { store } from './app/store';
+import { App } from './app/App';
+import reportWebVitals from './shared/lib/reportWebVitals'; // Метрики производительности
+import './shared/styles/global.css';
 
+// Создаём корневой элемент
 const root = ReactDOM.createRoot(
-  document.getElementById('root') as HTMLElement
-);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
+    document.getElementById('root') as HTMLElement
 );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+// Рендерим приложение с провайдерами
+root.render(
+    <React.StrictMode>
+        {/* Провайдер Redux store */}
+        <Provider store={store}>
+            {/* Провайдер Ant Design с русской локализацией */}
+            <ConfigProvider locale={ruRU}>
+                {/* Главный компонент приложения */}
+                <App />
+            </ConfigProvider>
+        </Provider>
+    </React.StrictMode>
+);
+
+// Если нужно измерять производительность
 reportWebVitals();
