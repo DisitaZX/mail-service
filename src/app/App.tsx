@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Layout, Table, Empty, Modal, Button, Form, Input, message, Flex } from 'antd';
+import { Layout, Table, Empty, Modal, Button, Form, Input, message, Flex, MenuProps, Dropdown, Space } from 'antd';
+import { SearchOutlined, DownOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { Status, Task} from "../features/entities";
+import { Status, Task, Recipient } from "../features/entities";
 import 'antd/dist/reset.css';
 import './styles/App.css';
 import {
@@ -13,7 +14,10 @@ import {
     useCreateTaskMutation,
     useGetEmailsQuery,
     useUpdateEmailMutation,
-    useCreateEmailMutation
+    useCreateEmailMutation,
+    useGetRecipientsQuery,
+    useUpdateRecipientMutation,
+    useCreateRecipientMutation
 } from '../features/api';
 
 interface TableConfig<T = any> {
@@ -23,7 +27,6 @@ interface TableConfig<T = any> {
 }
 
 export const App = () => {
-    const [isOpen, setOpen] = useState(false);
     const [activeTable, setActiveTable] = useState<string | null>(null);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
@@ -51,15 +54,23 @@ export const App = () => {
         refetch: refetchEmails
     } = useGetEmailsQuery();
 
+    const {
+        data: recipients = [],
+        isLoading: isRecipientsLoading,
+        refetch: refetchRecipients
+    } = useGetRecipientsQuery();
+
     // Мутации для обновления данных
     const [updateStatus] = useUpdateStatusMutation();
     const [updateTask] = useUpdateTaskMutation();
     const [updateEmail] = useUpdateEmailMutation();
+    const [updateRecipient] = useUpdateRecipientMutation();
 
     // Мутации для создания данных
     const [createStatus] = useCreateStatusMutation();
     const [createTask] = useCreateTaskMutation();
     const [createEmail] = useCreateEmailMutation();
+    const [createRecipient] = useCreateRecipientMutation();
 
 
     const tableConfigs: Record<string, TableConfig> = {
@@ -86,19 +97,24 @@ export const App = () => {
                                 placeholder="Поиск по теме"
                                 value={selectedKeys[0]}
                                 onChange={e => setSelectedKeys(e.target.value ? [e.target.value] : [])}
-                                onPressEnter={() => confirm}
+                                onPressEnter={() => confirm()}
                                 style={{ width: 188, marginBottom: 8, display: 'block' }}
                             />
                             <Button
                                 type="primary"
-                                onClick={() => confirm}
+                                onClick={() => confirm()}
                                 size="small"
                                 style={{ width: 90 }}
                             >
                                 Поиск
                             </Button>
                         </div>
-                    )
+                    ),
+                    onFilter: (value, record) =>
+                        record.subject.toLowerCase().includes(value.toString().toLowerCase()),
+                    filterIcon: filtered => (
+                        <SearchOutlined style={{ color: filtered ? '#1890ff' : undefined }} />
+                    ),
                 },
                 { title: 'Содержание', dataIndex: 'body', key: 'body' },
                 {
@@ -137,16 +153,19 @@ export const App = () => {
                     title: 'Получатели',
                     dataIndex: 'recipient_list',
                     key: 'recipients',
-                    render: (recipients: string[]) => recipients.join(', ') || 'Нет получателей'
+                    render: (recipients: Recipient[]) => recipients.join(', ') || 'Нет получателей'
                 },
             ],
             data: emails,
         },
-    };
-
-    const handleMenuItemClick = (tableName: string) => {
-        setActiveTable(tableName);
-        setOpen(false);
+        recipients: {
+            title: 'Получатели',
+            columns: [
+                { title: 'ID', dataIndex: 'id', key: 'id', sorter: (a, b) => a.id - b.id },
+                { title: 'Адрес', dataIndex: 'address', key: 'address' },
+            ],
+            data: recipients,
+        }
     };
 
     // Показ окна создания записи
@@ -154,6 +173,7 @@ export const App = () => {
         if (activeTable === 'statuses') setNewItemType('status');
         if (activeTable === 'tasks') setNewItemType('task');
         if (activeTable === 'emails') setNewItemType('email');
+        if (activeTable === 'recipients') setNewItemType('recipient');
         setIsCreateModalVisible(true);
         createForm.resetFields();
     };
@@ -163,6 +183,10 @@ export const App = () => {
         try {
             const values = await createForm.validateFields();
             switch (newItemType) {
+                case 'recipient':
+                    await createRecipient(values).unwrap();
+                    message.success('Пользователь успешно создан');
+                    break;
                 case 'status':
                     await createStatus(values).unwrap();
                     message.success('Статус успешно создан');
@@ -189,7 +213,6 @@ export const App = () => {
                     message.success('Сообщение успешно создано');
                     break;
             }
-
             setIsCreateModalVisible(false);
             createForm.resetFields();
 
@@ -197,6 +220,7 @@ export const App = () => {
             if (activeTable === 'statuses') refetchStatuses();
             if (activeTable === 'tasks') refetchTasks();
             if (activeTable === 'emails') refetchEmails();
+            if (activeTable === 'recipients') refetchRecipients(); // Может понадобиться
 
         } catch (error) {
             message.error('Ошибка при создании записи');
@@ -210,6 +234,9 @@ export const App = () => {
             if (!currentRecord) return;
 
             switch (activeTable) {
+                case 'recipients':
+                    await updateRecipient({ id: currentRecord.id, ...values }).unwrap();
+                    break
                 case 'statuses':
                     await updateStatus({ id: currentRecord.id, ...values }).unwrap();
                     break;
@@ -228,6 +255,7 @@ export const App = () => {
             if (activeTable === 'statuses') refetchStatuses();
             if (activeTable === 'tasks') refetchTasks();
             if (activeTable === 'emails') refetchEmails();
+            if (activeTable === 'recipients') refetchRecipients();
 
         } catch (error) {
             message.error('Ошибка при обновлении данных');
@@ -236,13 +264,15 @@ export const App = () => {
     };
 
     const currentTable = activeTable ? tableConfigs[activeTable] : null;
-    const isLoading = isStatusesLoading || isTasksLoading || isEmailsLoading;
+    const isLoading = isStatusesLoading || isTasksLoading || isEmailsLoading || isRecipientsLoading;
 
     const renderFormFields = () => {
         if (!currentTable || !currentRecord) return null;
 
         return currentTable.columns.map((column: any) => {
             if (column.key === 'id') return null;
+            if (column.key === 'created_at') return null;
+            if (column.key === 'send_at') return null;
 
             return (
                 <Form.Item
@@ -257,17 +287,44 @@ export const App = () => {
         });
     };
 
+    const items: MenuProps['items'] = [
+        {
+            label: 'Задачи',
+            key: 'tasks',
+        },
+        {
+            label: 'Сообщения',
+            key: 'emails',
+        },
+        {
+            label: 'Статусы',
+            key: 'statuses',
+        },
+        {
+            label: 'Пользователи',
+            key: 'recipients',
+        },
+    ];
+
+    const onClick: MenuProps['onClick'] = ({ key }) => {
+        setActiveTable(key);
+    };
+
     return (
         <Layout>
             <header className="header">
-                <Button type="primary" className="menu_button" onClick={() => setOpen(!isOpen)}>Справочники</Button>
-                <nav className={`menu ${isOpen ? 'active' : ''}`}>
-                    <ul className="menu_list">
-                        <li className="menu_item" onClick={() => handleMenuItemClick('tasks')}>Задачи</li>
-                        <li className="menu_item" onClick={() => handleMenuItemClick('emails')}>Сообщения</li>
-                        <li className="menu_item" onClick={() => handleMenuItemClick('statuses')}>Статусы</li>
-                    </ul>
-                </nav>
+                <Dropdown menu={{ items, onClick, style: { padding: '10px 20px' } }}>
+                    <Button type="primary" onClick={(e) => e.preventDefault()} style={{
+                        padding: '10px 20px',
+                        height: 'auto',
+                        fontSize: '20px'
+                    }}>
+                        <Space>
+                            Справочники
+                            <DownOutlined/>
+                        </Space>
+                    </Button>
+                </Dropdown>
             </header>
             <div className="content">
                 {currentTable ? (
@@ -317,6 +374,14 @@ export const App = () => {
                             onOk={handleCreate}
                         >
                             <Form form={createForm} layout="vertical">
+                                {newItemType === 'recipient' && (
+                                    <>
+                                        <Form.Item name="address" label="Адрес">
+                                            <Input.TextArea />
+                                        </Form.Item>
+                                    </>
+                                )}
+
                                 {newItemType === 'status' && (
                                     <>
                                         <Form.Item name="name" label="Название" rules={[{ required: true }]}>
