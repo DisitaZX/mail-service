@@ -1,14 +1,11 @@
-import React, { Suspense } from 'react';
+import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { MainPage } from '@pages/MainPage';
-import { PageLoader } from '@widgets/page-loader';
+import { App } from '../../app/App';
 
-export const AppRouter = () => {
+export const RouterConfig = () => {
     return (
-        <Suspense fallback={<PageLoader />}>
-            <Routes>
-                <Route path="/" element={<MainPage />} />
-            </Routes>
-        </Suspense>
+        <Routes>
+            <Route path="/" element={<App />} />
+        </Routes>
     );
 };

@@ -24,7 +24,7 @@ export const taskApi = baseApi.injectEndpoints({
         }),
         updateTask: build.mutation<Task, Partial<Task>>({
             query: ({ id, ...body }) => ({
-                url: `tasks/${id}`,
+                url: `tasks/${id}/`,
                 method: 'PUT',
                 body,
             }),
@@ -32,7 +32,7 @@ export const taskApi = baseApi.injectEndpoints({
         }),
         deleteTask: build.mutation<void, number>({
             query: (id) => ({
-                url: `tasks/${id}`,
+                url: `tasks/${id}/`,
                 method: 'DELETE',
             }),
             invalidatesTags: ['Task'],

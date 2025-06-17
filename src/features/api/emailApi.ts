@@ -11,7 +11,7 @@ export const emailApi = baseApi.injectEndpoints({
                     : ['Email'],
         }),
         getEmailById: build.query<Email, number>({
-            query: (id) => `emails/${id}`,
+            query: (id) => `emails/${id}/`,
             providesTags: (_result, _error, id) => [{ type: 'Email', id }],
         }),
         createEmail: build.mutation<Email, Partial<Email>>({
@@ -32,7 +32,7 @@ export const emailApi = baseApi.injectEndpoints({
         }),
         deleteEmail: build.mutation<void, number>({
             query: (id) => ({
-                url: `emails/${id}`,
+                url: `emails/${id}/`,
                 method: 'DELETE',
             }),
             invalidatesTags: ['Email'],

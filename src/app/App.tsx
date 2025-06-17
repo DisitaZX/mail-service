@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Layout, Table, Empty, Modal, Button, Form, Input, message, Flex, MenuProps, Dropdown, Space } from 'antd';
-import { SearchOutlined, DownOutlined } from '@ant-design/icons';
+import { Layout, Table, Empty, Modal, Button, Form, Input, message, Flex, MenuProps, Dropdown, Space, Select } from 'antd';
+import { SearchOutlined, DownOutlined, MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Status, Task, Recipient } from "../features/entities";
 import 'antd/dist/reset.css';
@@ -152,8 +152,8 @@ export const App = () => {
                 {
                     title: 'Получатели',
                     dataIndex: 'recipient_list',
-                    key: 'recipients',
-                    render: (recipients: Recipient[]) => recipients.join(', ') || 'Нет получателей'
+                    key: 'recipient_list',
+                    render: (recipients: Recipient[]) => recipients.map(r => r.address).join(', ') || 'Нет получателей'
                 },
             ],
             data: emails,
@@ -274,6 +274,70 @@ export const App = () => {
             if (column.key === 'created_at') return null;
             if (column.key === 'send_at') return null;
 
+            const fieldValue = currentRecord[column.key];
+
+            if (column.key === 'status') {
+                return (
+                    <Form.Item
+                        key={column.key}
+                        label={column.title}
+                    >
+                        <Select
+                            options={statuses?.map(s => ({ value: s.id, label: s.name }))}
+                            placeholder={`Выберите ${column.title.toLowerCase()}`}
+                            value={fieldValue?.id}
+                        />
+                    </Form.Item>
+                );
+            }
+
+            if (column.key === 'task') {
+                return (
+                    <Form.Item
+                        key={column.key}
+                        label={column.title}
+                    >
+                        <Select
+                            options={tasks?.map(t => ({value: t.id, label: t.subject}))}
+                            placeholder={`Выберите ${column.title.toLowerCase()}`}
+                            value={fieldValue?.id}
+                        />
+                    </Form.Item>
+                );
+            }
+
+            // Обработка массивов (recipient_list)
+            if (Array.isArray(fieldValue)) {
+                return (
+                    <Form.Item label={column.title}>
+                        <Form.List name={column.key} >
+                            {(fields, { add, remove }) => (
+                                <>
+                                    {fields.map(({ key, name, ...restField }) => (
+                                        <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
+                                            <Form.Item
+                                                {...restField}
+                                                name={[name, 'address']}
+                                                rules={[{ required: true, message: 'Введите email' }]}
+                                            >
+                                                <Input placeholder="Email получателя" />
+                                            </Form.Item>
+                                            <MinusCircleOutlined onClick={() => remove(name)} />
+                                        </Space>
+                                    ))}
+                                    <Form.Item>
+                                        <Button type="dashed" onClick={() => add({ address: '' })} block icon={<PlusOutlined />}>
+                                            Добавить получателя
+                                        </Button>
+                                    </Form.Item>
+                                </>
+                            )}
+                        </Form.List>
+                    </Form.Item>
+                );
+            }
+
+            // Стандартные поля
             return (
                 <Form.Item
                     key={column.key}

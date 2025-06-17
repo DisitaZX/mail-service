@@ -16,11 +16,8 @@ const root = ReactDOM.createRoot(
 // Рендерим приложение с провайдерами
 root.render(
     <React.StrictMode>
-        {/* Провайдер Redux store */}
         <Provider store={store}>
-            {/* Провайдер Ant Design с русской локализацией */}
             <ConfigProvider locale={ruRU}>
-                {/* Главный компонент приложения */}
                 <App />
             </ConfigProvider>
         </Provider>

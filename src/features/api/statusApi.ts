@@ -33,7 +33,7 @@ export const statusApi = baseApi.injectEndpoints({
         }),
         deleteStatus: build.mutation<void, number>({
             query: (id) => ({
-                url: `statuses/${id}`,
+                url: `statuses/${id}/`,
                 method: 'DELETE',
             }),
             invalidatesTags: ['Status'],
