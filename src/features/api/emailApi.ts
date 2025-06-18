@@ -23,10 +23,10 @@ export const emailApi = baseApi.injectEndpoints({
             invalidatesTags: ['Email'],
         }),
         updateEmail: build.mutation<Email, { id: number; data: Partial<Email> }>({
-            query: ({ id, data }) => ({
+            query: ({ id, ...body }) => ({
                 url: `emails/${id}/`, // PUT/PATCH на конкретный ID
                 method: 'PATCH',
-                body: data,
+                body: body,
             }),
             invalidatesTags: (_result, _error, { id }) => [{ type: 'Email', id }],
         }),

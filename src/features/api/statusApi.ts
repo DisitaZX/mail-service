@@ -24,10 +24,10 @@ export const statusApi = baseApi.injectEndpoints({
         }),
 
         updateStatus: build.mutation<Status, { id: number; data: Partial<Status> }>({
-            query: ({ id, data }) => ({
+            query: ({ id, ...body }) => ({
                 url: `statuses/${id}/`, // PUT/PATCH на конкретный ID
-                method: 'PATCH',
-                body: data,
+                method: 'PUT',
+                body: body,
             }),
             invalidatesTags: (_result, _error, { id }) => [{ type: 'Status', id }],
         }),

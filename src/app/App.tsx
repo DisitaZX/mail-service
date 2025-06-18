@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout, Table, Empty, Modal, Button, Form, Input, message, Flex, MenuProps, Dropdown, Space, Select } from 'antd';
-import { SearchOutlined, DownOutlined, MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
+import { SearchOutlined, DownOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { Status, Task, Recipient } from "../features/entities";
 import 'antd/dist/reset.css';
@@ -9,15 +9,19 @@ import {
     useGetStatusesQuery,
     useUpdateStatusMutation,
     useCreateStatusMutation,
+    useDeleteStatusMutation,
     useGetTasksQuery,
     useUpdateTaskMutation,
     useCreateTaskMutation,
+    useDeleteTaskMutation,
     useGetEmailsQuery,
     useUpdateEmailMutation,
     useCreateEmailMutation,
+    useDeleteEmailMutation,
     useGetRecipientsQuery,
     useUpdateRecipientMutation,
-    useCreateRecipientMutation
+    useCreateRecipientMutation,
+    useDeleteRecipientMutation
 } from '../features/api';
 
 interface TableConfig<T = any> {
@@ -72,6 +76,11 @@ export const App = () => {
     const [createEmail] = useCreateEmailMutation();
     const [createRecipient] = useCreateRecipientMutation();
 
+    // Мутации для удаления данных
+    const [deleteStatus] = useDeleteStatusMutation();
+    const [deleteTask] = useDeleteTaskMutation();
+    const [deleteEmail] = useDeleteEmailMutation();
+    const [deleteRecipient] = useDeleteRecipientMutation();
 
     const tableConfigs: Record<string, TableConfig> = {
         statuses: {
@@ -178,6 +187,39 @@ export const App = () => {
         createForm.resetFields();
     };
 
+    // Обработчик удаления записи
+    const handleDelete = async () => {
+        try {
+            switch (activeTable) {
+                case 'recipients':
+                    await deleteRecipient(currentRecord.id).unwrap();
+                    break
+                case 'statuses':
+                    await deleteStatus(currentRecord.id).unwrap();
+                    break;
+                case 'tasks':
+                    await deleteTask(currentRecord.id).unwrap();
+                    break;
+                case 'emails':
+                    await deleteEmail(currentRecord.id).unwrap();
+                    break;
+            }
+
+            // Обновляем данные
+            if (activeTable === 'statuses') refetchStatuses();
+            if (activeTable === 'tasks') refetchTasks();
+            if (activeTable === 'emails') refetchEmails();
+            if (activeTable === 'recipients') refetchRecipients();
+
+            message.success('Данные успешно удалены');
+            setIsModalVisible(false);
+
+        } catch (error) {
+            message.error('Ошибка при удалении записи');
+            console.error('Delete error:', error);
+        }
+    }
+
     // Обработчик создания записи
     const handleCreate = async () => {
         try {
@@ -196,20 +238,15 @@ export const App = () => {
                     message.success('Задача успешно создана');
                     break;
                 case 'email':
-                    await createEmail({
-                        status: {
-                            id: values.id,
-                            name: values.name,
-                            description: values.description
-                        },
-                        task: {
-                            id: values.id,
-                            created_at: values.created_at,
-                            subject: values.subject,
-                            body: values.body
-                        },
-                        recipient_list: values.recipients || []
-                    }).unwrap();
+                    const fullValues = {
+                        ...values,
+                        status: values.status ? statuses?.find(s => s.id === values.status) : null,
+                        task: values.task ? tasks?.find(t => t.id === values.task) : null,
+                        recipient_list: values.recipient_list?.map((id: number) =>
+                            recipients?.find(r => r.id === id)
+                        ).filter(Boolean) || null
+                    }
+                    await createEmail(fullValues).unwrap();
                     message.success('Сообщение успешно создано');
                     break;
             }
@@ -220,7 +257,7 @@ export const App = () => {
             if (activeTable === 'statuses') refetchStatuses();
             if (activeTable === 'tasks') refetchTasks();
             if (activeTable === 'emails') refetchEmails();
-            if (activeTable === 'recipients') refetchRecipients(); // Может понадобиться
+            if (activeTable === 'recipients') refetchRecipients();
 
         } catch (error) {
             message.error('Ошибка при создании записи');
@@ -232,7 +269,6 @@ export const App = () => {
     const handleSubmit = async (values: any) => {
         try {
             if (!currentRecord) return;
-
             switch (activeTable) {
                 case 'recipients':
                     await updateRecipient({ id: currentRecord.id, ...values }).unwrap();
@@ -244,7 +280,15 @@ export const App = () => {
                     await updateTask({ id: currentRecord.id, ...values }).unwrap();
                     break;
                 case 'emails':
-                    await updateEmail({ id: currentRecord.id, ...values }).unwrap();
+                    const fullValues = {
+                        ...values,
+                        status: values.status ? statuses?.find(s => s.id === values.status) : null,
+                        task: values.task ? tasks?.find(t => t.id === values.task) : null,
+                        recipient_list: values.recipient_list?.map((id: number) =>
+                            recipients?.find(r => r.id === id)
+                        ).filter(Boolean) || null
+                        }
+                    await updateEmail({ id: currentRecord.id, ...fullValues }).unwrap();
                     break;
             }
 
@@ -254,7 +298,7 @@ export const App = () => {
             // Обновляем данные
             if (activeTable === 'statuses') refetchStatuses();
             if (activeTable === 'tasks') refetchTasks();
-            if (activeTable === 'emails') refetchEmails();
+            if (activeTable === 'emails') {refetchEmails(); refetchTasks(); refetchRecipients(); refetchStatuses()}
             if (activeTable === 'recipients') refetchRecipients();
 
         } catch (error) {
@@ -274,18 +318,27 @@ export const App = () => {
             if (column.key === 'created_at') return null;
             if (column.key === 'send_at') return null;
 
-            const fieldValue = currentRecord[column.key];
-
             if (column.key === 'status') {
                 return (
                     <Form.Item
                         key={column.key}
+                        name={column.key}
                         label={column.title}
+                        getValueFromEvent={(id) => id}
                     >
                         <Select
-                            options={statuses?.map(s => ({ value: s.id, label: s.name }))}
-                            placeholder={`Выберите ${column.title.toLowerCase()}`}
-                            value={fieldValue?.id}
+                            options={statuses?.map(s => ({
+                                value: s.id,
+                                label: (
+                                    <div>
+                                        <div><strong>ID:</strong> {s.id}</div>
+                                        <div><strong>Название:</strong> {s.name}</div>
+                                        <div><strong>Описание:</strong> {s.description}</div>
+                                    </div>
+                                )
+                            }))}
+                            placeholder="Выберите статус"
+                            style={{ width: '100%', height: 'auto' }}
                         />
                     </Form.Item>
                 );
@@ -295,44 +348,46 @@ export const App = () => {
                 return (
                     <Form.Item
                         key={column.key}
+                        name={column.key}
                         label={column.title}
+                        getValueFromEvent={(id) => id}
                     >
                         <Select
-                            options={tasks?.map(t => ({value: t.id, label: t.subject}))}
-                            placeholder={`Выберите ${column.title.toLowerCase()}`}
-                            value={fieldValue?.id}
+                            options={tasks?.map(t => ({
+                                value: t.id,
+                                label: (
+                                    <div>
+                                        <div><strong>ID:</strong> {t.id}</div>
+                                        <div><strong>Тема:</strong> {t.subject}</div>
+                                        <div><strong>Дата:</strong> {new Date(t.created_at).toLocaleString()}</div>
+                                        <div><strong>Текст:</strong> {t.body}</div>
+                                    </div>
+                                )}))}
+                            placeholder={`Выберите задачу`}
+                            optionLabelProp="label"
+                            style={{ width: '100%', height: 'auto' }}
                         />
                     </Form.Item>
                 );
             }
 
-            // Обработка массивов (recipient_list)
-            if (Array.isArray(fieldValue)) {
+            if (column.key === 'recipient_list') {
                 return (
-                    <Form.Item label={column.title}>
-                        <Form.List name={column.key} >
-                            {(fields, { add, remove }) => (
-                                <>
-                                    {fields.map(({ key, name, ...restField }) => (
-                                        <Space key={key} style={{ display: 'flex', marginBottom: 8 }} align="baseline">
-                                            <Form.Item
-                                                {...restField}
-                                                name={[name, 'address']}
-                                                rules={[{ required: true, message: 'Введите email' }]}
-                                            >
-                                                <Input placeholder="Email получателя" />
-                                            </Form.Item>
-                                            <MinusCircleOutlined onClick={() => remove(name)} />
-                                        </Space>
-                                    ))}
-                                    <Form.Item>
-                                        <Button type="dashed" onClick={() => add({ address: '' })} block icon={<PlusOutlined />}>
-                                            Добавить получателя
-                                        </Button>
-                                    </Form.Item>
-                                </>
-                            )}
-                        </Form.List>
+                    <Form.Item
+                        key={column.key}
+                        name={column.key}
+                        label={column.title}
+                    >
+                        <Select
+                            mode="multiple"
+                            optionFilterProp="label"
+                            options={recipients?.map(r => ({
+                                value: r.id, // Сохраняем только ID в форме
+                                label: r.address,
+                                recipient: r // Сохраняем весь объект для доступа
+                            }))}
+                            style={{ width: '100%' }}
+                        />
                     </Form.Item>
                 );
             }
@@ -373,6 +428,16 @@ export const App = () => {
     const onClick: MenuProps['onClick'] = ({ key }) => {
         setActiveTable(key);
     };
+    useEffect(() => {
+        if (isModalVisible && currentRecord) {
+            form.setFieldsValue({
+                ...currentRecord,
+                status: currentRecord.status?.id ?? null,
+                task: currentRecord.task?.id ?? null,
+                recipient_list: currentRecord.recipient_list?.map((r: Recipient) => r.id) || []
+            });
+        }
+    }, [form, isModalVisible, currentRecord]);
 
     return (
         <Layout>
@@ -406,7 +471,6 @@ export const App = () => {
                                 onDoubleClick: () => {
                                     setCurrentRecord(record);
                                     setIsModalVisible(true);
-                                    form.setFieldsValue(record);
                                 }
                             })}
                         />
@@ -414,7 +478,11 @@ export const App = () => {
                             title={`Редактирование записи`}
                             open={isModalVisible}
                             onCancel={() => setIsModalVisible(false)}
+                            destroyOnHidden={true}
                             footer={[
+                                <Button danger key="delete" onClick={() => handleDelete()}>
+                                    Удалить
+                                </Button>,
                                 <Button key="back" onClick={() => setIsModalVisible(false)}>
                                     Отмена
                                 </Button>,
@@ -470,14 +538,50 @@ export const App = () => {
 
                                 {newItemType === 'email' && (
                                     <>
-                                        <Form.Item name="recipient" label="Получатель" rules={[{ required: true, type: 'email' }]}>
-                                            <Input />
+                                        <Form.Item name="status" label="ID статуса">
+                                            <Select
+                                                options={statuses?.map(s => ({
+                                                    value: s.id,
+                                                    label: (
+                                                        <div>
+                                                            <div><strong>ID:</strong> {s.id}</div>
+                                                            <div><strong>Название:</strong> {s.name}</div>
+                                                            <div><strong>Описание:</strong> {s.description}</div>
+                                                        </div>
+                                                    )
+                                                }))}
+                                                placeholder="Выберите статус"
+                                                style={{ width: '100%', height: 'auto' }}
+                                            />
                                         </Form.Item>
-                                        <Form.Item name="task_id" label="ID задачи" rules={[{ required: true }]}>
-                                            <Input type="number" />
+                                        <Form.Item name="task" label="ID задачи" rules={[{ required: true }]}>
+                                            <Select
+                                                options={tasks?.map(t => ({
+                                                    value: t.id,
+                                                    label: (
+                                                        <div>
+                                                            <div><strong>ID:</strong> {t.id}</div>
+                                                            <div><strong>Тема:</strong> {t.subject}</div>
+                                                            <div><strong>Дата:</strong> {new Date(t.created_at).toLocaleString()}</div>
+                                                            <div><strong>Текст:</strong> {t.body}</div>
+                                                        </div>
+                                                    )}))}
+                                                placeholder={`Выберите задачу`}
+                                                optionLabelProp="label"
+                                                style={{ width: '100%', height: 'auto' }}
+                                            />
                                         </Form.Item>
-                                        <Form.Item name="status_id" label="ID статуса">
-                                            <Input type="number" />
+                                        <Form.Item name="recipient_list" label="Получатели" rules={[{ required: true }]}>
+                                            <Select
+                                                mode="multiple"
+                                                optionFilterProp="label"
+                                                options={recipients?.map(r => ({
+                                                    value: r.id, // Сохраняем только ID в форме
+                                                    label: r.address,
+                                                    recipient: r // Сохраняем весь объект для доступа
+                                                }))}
+                                                style={{ width: '100%' }}
+                                            />
                                         </Form.Item>
                                     </>
                                 )}

@@ -23,12 +23,19 @@ export const recipientApi = baseApi.injectEndpoints({
             invalidatesTags: ['Recipient'],
         }),
         updateRecipient: build.mutation<Recipient, { id: number; data: Partial<Recipient> }>({
-            query: ({ id, data }) => ({
+            query: ({ id, ...body }) => ({
                 url: `recipients/${id}/`, // PUT/PATCH на конкретный ID
                 method: 'PATCH',
-                body: data,
+                body: body,
             }),
             invalidatesTags: (_result, _error, { id }) => [{ type: 'Recipient', id }],
+        }),
+        deleteRecipient: build.mutation<void, number>({
+            query: (id) => ({
+                url: `recipients/${id}/`,
+                method: 'DELETE',
+            }),
+            invalidatesTags: ['Recipient'],
         }),
     })
 })
@@ -38,4 +45,5 @@ export const {
     useGetRecipientByIdQuery,
     useCreateRecipientMutation,
     useUpdateRecipientMutation,
+    useDeleteRecipientMutation,
 } = recipientApi
